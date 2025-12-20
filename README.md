@@ -1,14 +1,149 @@
 # Gijiroku21
+
+[![開発状態](https://img.shields.io/badge/状態-アルファ版-yellow)](https://github.com/sho11decade/Gijiroku21)
+[![バージョン](https://img.shields.io/badge/version-0.1.0--alpha-blue)](https://github.com/sho11decade/Gijiroku21)
+[![License](https://img.shields.io/badge/license-未定-lightgrey)](./LICENSE)
+
 ## 概要
-Gijiroku21 は、ローカルで動作する高性能な議事録作成アプリケーションです。Tauri フレームワークを用いてデスクトップアプリケーションとして開発され、Rust をバックエンドに、React を用いたモダンな Web UI を提供します。AI ベースの音声認識（ASR）と大規模言語モデル（LLM）を活用し、高精度な議事録生成を実現します。NPUを活用し、ほかのアプリケーションに影響を与えずに効率的な処理を行います。
+
+Gijiroku21 は、**完全ローカル動作**する高性能な議事録作成デスクトップアプリケーションです。Tauri フレームワーク（Rust + React）を採用し、NPUを活用したAI音声認識（ASR）と大規模言語モデル（LLM）により、プライバシーを保護しながら高精度な議事録生成を実現します。
+
+**重要**: すべての処理はローカルで完結し、音声データやテキストはクラウドに送信されません。
 
 ## 主な特徴
-- **ローカル動作**: インターネット接続不要で、プライバシーを保護しながら議事録を作成。
-- **高精度音声認識**: 最新のAI技術を活用し、正確な音声認識を実現。
-- **大規模言語モデル**: 高度な自然言語処理により、議事録の品質を向上。
-- **NPU活用**: NPUを利用して効率的な処理を実現し、他のアプリケーションへの影響を最小限に抑制。
-- **ユーザーフレンドリーなUI**: 直感的で使いやすいインターフェースを提供。
-- **多言語対応**: 複数の言語に対応し、グローバルな利用が可能。
-- **プライバシーポリシー**: ローカルでの動作に加えてユーザーデータの保護に重点を置き、透明性のあるデータ管理を実施。
+
+- 🔒 **完全ローカル動作**: インターネット接続不要、クラウド通信なし
+- 🎙️ **リアルタイム音声認識**: ONNX + Whisperモデルによる高精度文字起こし（予定）
+- 🤖 **AI要約生成**: 大規模言語モデルによる議事録構造化（予定）
+- ⚡ **NPU活用**: NPUアクセラレーションで効率的な処理（予定）
+- 🎨 **モダンUI**: React + Radix UIによる直感的なインターフェース
+- 💾 **データ永続化**: ローカルストレージに安全に保存
+- 🌐 **多言語対応**: 日本語を中心に複数言語サポート予定
+
+## 現在の実装状況（2025-12-21）
+
+### ✅ 実装完了
+- [x] Rustバックエンド基盤（エラーハンドリング、状態管理）
+- [x] 音声キャプチャ機能（cpal使用、48kHz モノラル）
+- [x] 録音開始/停止/一時停止/再開 API
+- [x] WAVファイルエクスポート
+- [x] 設定管理（JSON永続化）
+- [x] React UI統合（録音画面、設定画面）
+
+### 🚧 開発中
+- [ ] ONNX Runtime + Whisperモデル統合
+- [ ] リアルタイムASRパイプライン
+- [ ] LLM要約生成
+- [ ] NPU検出・最適化
+- [ ] 話者分離
+
+詳細は [Implementation.md](./docs/Implementation.md) を参照してください。
+
+## 技術スタック
+
+- **バックエンド**: Rust 1.70+, Tauri 2.9.5
+- **フロントエンド**: React 19, TypeScript 5, Vite 7
+- **音声処理**: cpal 0.15.3, hound 3.5.1
+- **非同期**: Tokio 1.48.0
+- **UI**: Radix UI (shadcn/ui), Framer Motion
+- **予定**: ONNX Runtime, DirectML, llama.cpp
+
+## セットアップ
+
+### 必須要件
+- Rust 1.70+ ([rustup](https://rustup.rs/)でインストール)
+- Node.js 18+ & pnpm
+- Tauri CLI: `cargo install tauri-cli --version "^2.0.0"`
+- Windows SDK（Windows開発時）
+
+### インストール手順
+
+```powershell
+# リポジトリをクローン
+git clone https://github.com/sho11decade/Gijiroku21.git
+cd Gijiroku21
+
+# フロントエンドの依存関係をインストール
+cd apps/Desktop
+pnpm install
+
+# 開発サーバーを起動
+pnpm tauri dev
+```
+
+### ビルド
+
+```powershell
+pnpm tauri build
+```
+
+## 使い方
+
+1. アプリを起動
+2. マイク権限を許可（初回のみ）
+3. 会議名を入力
+4. 「録音開始」ボタンをクリック
+5. 会議終了後「録音停止」で自動保存
+
+録音データは `%APPDATA%/Gijiroku21/data/meetings/` に保存されます。
+
+## プロジェクト構成
+
+```
+Gijiroku21/
+├── apps/Desktop/        # Tauriアプリ本体
+│   ├── src-tauri/      # Rustバックエンド
+│   └── src/            # React UI
+├── core/               # 共有Rustライブラリ
+├── models/             # AIモデル（予定）
+├── docs/               # ドキュメント
+└── tests/              # テスト
+```
+
 ## ドキュメント
-/docs フォルダに詳細なドキュメントを用意しています。
+
+- [Implementation.md](./docs/Implementation.md) - 実装状況の詳細
+- [DevelopmentPlan.md](./docs/DevelopmentPlan.md) - 開発計画と設計
+- [proposal.md](./docs/proposal.md) - プロジェクト提案書
+- [RecommendationTech.md](./docs/RecommendationTech.md) - 技術選定理由
+- [.github/copilot-instructions.md](./.github/copilot-instructions.md) - AI開発ガイド
+
+## トラブルシューティング
+
+### ビルドエラー
+- **cpalのコンパイルが失敗する**: Windows SDKをインストールしてください
+- **Tauri CLIが見つからない**: `cargo install tauri-cli --version "^2.0.0"`を実行
+
+### 録音できない
+- マイクの権限を確認（Windows設定 → プライバシー → マイク）
+- 他のアプリケーションがマイクを使用していないか確認
+
+### 設定が保存されない
+- `%APPDATA%/Gijiroku21/config/`への書き込み権限を確認
+
+詳細は [Implementation.md](./docs/Implementation.md) のトラブルシューティングセクションを参照してください。
+
+## ロードマップ
+
+- [x] **Phase 1**: 基本インフラ（完了）
+- [x] **Phase 2**: 音声録音機能（完了）
+- [ ] **Phase 3**: ASR統合（開発中）
+- [ ] **Phase 4**: LLM要約機能
+- [ ] **Phase 5**: NPU最適化
+- [ ] **Phase 6**: 高度な機能（検索、履歴管理）
+
+## ライセンス
+
+未定（開発中）
+
+## 貢献
+
+現在アクティブに開発中です。Issue や Pull Request を歓迎します。
+
+## お問い合わせ
+
+プロジェクトに関する質問は GitHub Issues でお願いします。
+
+---
+
+**注意**: このプロジェクトはアルファ版です。本番環境での使用は推奨されません。
