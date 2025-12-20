@@ -1,26 +1,79 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { HelpCircle, Cpu, Zap, BarChart3 } from "lucide-react";
 import { ToastType } from "./Toast";
 import { Tooltip } from "./Tooltip";
+import { getSettings, updateSettings, getNpuInfo, type Settings, type NpuInfo } from "../api/tauri";
 
 export function SettingsPanel({
   onToast,
 }: {
   onToast: (type: ToastType, message: string) => void;
 }) {
-  const [settings, setSettings] = useState({
-    speakerSeparation: true,
-    keyPointExtraction: true,
-    autoSummary: false,
-    npuAcceleration: true,
+  const [settings, setSettings] = useState<Settings>({
+    use_npu: true,
+    asr_model_size: "small",
+    use_llm: true,
+    auto_save: true,
+    save_directory: null,
   });
+  
+  const [npuInfo, setNpuInfo] = useState<NpuInfo | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const [showPerformance, setShowPerformance] = useState(false);
 
-  const toggleSetting = (key: keyof typeof settings) => {
-    setSettings((prev) => ({ ...prev, [key]: !prev[key] }));
-    onToast("success", "設定を更新しました");
+  // 初回ロード時に設定とNPU情報を取得
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const [settingsData, npuData] = await Promise.all([
+          getSettings(),
+          getNpuInfo(),
+        ]);
+        setSettings(settingsData);
+        setNpuInfo(npuData);
+      } catch (error) {
+        console.error("Failed to load settings:", error);
+        onToast("error", "設定の読み込みに失敗しました");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadSettings();
+  }, [onToast]);
+
+  const handleSettingsUpdate = async (newSettings: Settings) => {
+    try {
+      await updateSettings(newSettings);
+      setSettings(newSettings);
+      onToast("success", "設定を更新しました");
+    } catch (error) {
+      console.error("Failed to update settings:", error);
+      onToast("error", "設定の更新に失敗しました");
+    }
   };
+
+  const toggleNpu = () => {
+    handleSettingsUpdate({ ...settings, use_npu: !settings.use_npu });
+  };
+
+  const toggleLlm = () => {
+    handleSettingsUpdate({ ...settings, use_llm: !settings.use_llm });
+  };
+
+  const toggleAutoSave = () => {
+    handleSettingsUpdate({ ...settings, auto_save: !settings.auto_save });
+  };
+
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto p-6">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <p className="text-gray-600">設定を読み込んでいます...</p>
+        </div>
+      </div>
+    );
+  }
 
   const performanceData = {
     audioToText: 0.8,
@@ -37,100 +90,65 @@ export function SettingsPanel({
         <h2 className="text-gray-900 mb-6">基本設定</h2>
 
         <div className="space-y-6">
-          {/* 発言者分離 */}
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <label className="text-gray-900">
-                  発言者分離を使う
-                </label>
-                <button className="text-gray-400 hover:text-gray-600">
-                  <HelpCircle className="w-4 h-4" />
-                </button>
-              </div>
-              <p className="text-sm text-gray-600">
-                会議中の複数の発言者を自動で識別します。より正確な議事録作成に役立ちます。
-              </p>
-            </div>
-            <button
-              onClick={() => toggleSetting("speakerSeparation")}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ml-4 ${
-                settings.speakerSeparation
-                  ? "bg-blue-600"
-                  : "bg-gray-300"
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  settings.speakerSeparation
-                    ? "translate-x-6"
-                    : "translate-x-1"
-                }`}
-              />
-            </button>
-          </div>
-
-          {/* 要点抽出 */}
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <label className="text-gray-900">
-                  要点抽出を使う
-                </label>
-                <button className="text-gray-400 hover:text-gray-600">
-                  <HelpCircle className="w-4 h-4" />
-                </button>
-              </div>
-              <p className="text-sm text-gray-600">
-                会議中に重要な発言を自動でマーキングします。決定事項や要確認事項を見逃しません。
-              </p>
-            </div>
-            <button
-              onClick={() =>
-                toggleSetting("keyPointExtraction")
-              }
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ml-4 ${
-                settings.keyPointExtraction
-                  ? "bg-blue-600"
-                  : "bg-gray-300"
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  settings.keyPointExtraction
-                    ? "translate-x-6"
-                    : "translate-x-1"
-                }`}
-              />
-            </button>
-          </div>
-
           {/* 自動要約 */}
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-1">
                 <label className="text-gray-900">
-                  自動要約（会議後）
+                  LLM要約機能を使用する
                 </label>
                 <button className="text-gray-400 hover:text-gray-600">
                   <HelpCircle className="w-4 h-4" />
                 </button>
               </div>
               <p className="text-sm text-gray-600">
-                会議終了後、自動で要約を生成します。あとから自由に編集できます。
+                会議終了後、LLMによる自動要約を生成します。あとから自由に編集できます。
               </p>
             </div>
             <button
-              onClick={() => toggleSetting("autoSummary")}
+              onClick={toggleLlm}
               className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ml-4 ${
-                settings.autoSummary
+                settings.use_llm
                   ? "bg-blue-600"
                   : "bg-gray-300"
               }`}
             >
               <span
                 className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  settings.autoSummary
+                  settings.use_llm
+                    ? "translate-x-6"
+                    : "translate-x-1"
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* 自動保存 */}
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <label className="text-gray-900">
+                  自動保存
+                </label>
+                <button className="text-gray-400 hover:text-gray-600">
+                  <HelpCircle className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="text-sm text-gray-600">
+                会議内容を自動的に保存します。
+              </p>
+            </div>
+            <button
+              onClick={toggleAutoSave}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ml-4 ${
+                settings.auto_save
+                  ? "bg-blue-600"
+                  : "bg-gray-300"
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  settings.auto_save
                     ? "translate-x-6"
                     : "translate-x-1"
                 }`}
@@ -160,18 +178,23 @@ export function SettingsPanel({
             <p className="text-sm text-gray-600">
               NPUを使用することで、CPUへの負荷を減らしながら高速に処理できます。
             </p>
+            {npuInfo && (
+              <p className="text-xs text-gray-500 mt-1">
+                検出されたNPU: {npuInfo.available ? (npuInfo.device_name || "利用可能") : "利用不可"}
+              </p>
+            )}
           </div>
           <button
-            onClick={() => toggleSetting("npuAcceleration")}
+            onClick={toggleNpu}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ml-4 ${
-              settings.npuAcceleration
+              settings.use_npu
                 ? "bg-blue-600"
                 : "bg-gray-300"
             }`}
           >
             <span
               className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                settings.npuAcceleration
+                settings.use_npu
                   ? "translate-x-6"
                   : "translate-x-1"
               }`}
@@ -179,7 +202,7 @@ export function SettingsPanel({
           </button>
         </div>
 
-        {settings.npuAcceleration && (
+        {settings.use_npu && npuInfo?.available && (
           <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
             <div className="flex items-center gap-2 text-green-800 mb-2">
               <Zap className="w-4 h-4" />
@@ -187,6 +210,18 @@ export function SettingsPanel({
             </div>
             <p className="text-xs text-green-700">
               AI処理が高速化され、バッテリー消費も抑えられます。
+            </p>
+          </div>
+        )}
+        
+        {settings.use_npu && !npuInfo?.available && (
+          <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center gap-2 text-yellow-800 mb-2">
+              <HelpCircle className="w-4 h-4" />
+              <span className="text-sm">NPUが検出されませんでした</span>
+            </div>
+            <p className="text-xs text-yellow-700">
+              CPUまたはGPUで処理を行います。
             </p>
           </div>
         )}

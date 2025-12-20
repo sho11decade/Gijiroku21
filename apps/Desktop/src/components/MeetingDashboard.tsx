@@ -3,6 +3,7 @@ import { Mic, MicOff, Star, CheckCircle, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { EmptyState } from './EmptyState';
 import { ToastType } from './Toast';
+import * as TauriAPI from '../api/tauri';
 
 interface MeetingDashboardProps {
   isRecording: boolean;
@@ -20,41 +21,10 @@ interface Transcript {
 }
 
 export function MeetingDashboard({ isRecording, setIsRecording, onToast }: MeetingDashboardProps) {
-  const [transcripts, setTranscripts] = useState<Transcript[]>([
-    {
-      id: 1,
-      speaker: '田中会長',
-      text: '本日の議題は来月の夏祭りの準備についてです。',
-      confidence: 0.95,
-      timestamp: '14:00:05',
-      tags: ['important'],
-    },
-    {
-      id: 2,
-      speaker: '佐藤副会長',
-      text: '予算については前回から変更ありませんか？',
-      confidence: 0.92,
-      timestamp: '14:00:18',
-    },
-    {
-      id: 3,
-      speaker: '田中会長',
-      text: '予算は50万円で確定とします。',
-      confidence: 0.98,
-      timestamp: '14:00:32',
-      tags: ['decision'],
-    },
-    {
-      id: 4,
-      speaker: '鈴木',
-      text: '会場の予約は来週までに確認が必要です。',
-      confidence: 0.88,
-      timestamp: '14:00:45',
-      tags: ['confirm'],
-    },
-  ]);
-
+  const [transcripts, setTranscripts] = useState<Transcript[]>([]);
   const [meetingTime, setMeetingTime] = useState(0);
+  const [meetingTitle, setMeetingTitle] = useState('〇〇自治会 定例会');
+  const [currentMeetingId, setCurrentMeetingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (isRecording) {
@@ -97,10 +67,25 @@ export function MeetingDashboard({ isRecording, setIsRecording, onToast }: Meeti
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const toggleRecording = () => {
-    setIsRecording(!isRecording);
-    if (!isRecording) {
-      setMeetingTime(0);
+  const toggleRecording = async () => {
+    try {
+      if (!isRecording) {
+        // 録音開始
+        const meetingId = await TauriAPI.startRecording(meetingTitle);
+        setCurrentMeetingId(meetingId);
+        setIsRecording(true);
+        setMeetingTime(0);
+        setTranscripts([]);
+        onToast('success', '録音を開始しました');
+      } else {
+        // 録音停止
+        await TauriAPI.stopRecording();
+        setIsRecording(false);
+        setCurrentMeetingId(null);
+        onToast('success', '録音を停止しました');
+      }
+    } catch (error) {
+      onToast('error', `録音の操作に失敗しました: ${error}`);
     }
   };
 
@@ -123,8 +108,10 @@ export function MeetingDashboard({ isRecording, setIsRecording, onToast }: Meeti
             <label className="text-sm text-gray-500 mb-1 block">会議名</label>
             <input
               type="text"
-              defaultValue="〇〇自治会 定例会"
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={meetingTitle}
+              onChange={(e) => setMeetingTitle(e.target.value)}
+              disabled={isRecording}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
             />
           </div>
           <div>

@@ -1,0 +1,28 @@
+[package]
+name = "gijiroku21-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# エラーハンドリング
+thiserror = "1"
+anyhow = "1"
+
+# 非同期処理
+tokio = { version = "1", features = ["full"] }
+
+# シリアライゼーション
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# 音声処理
+cpal = "0.15"
+hound = "3.5"
+
+# ユーティリティ
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+directories = "5"
+
+[dev-dependencies]
+tokio-test = "0.4"
