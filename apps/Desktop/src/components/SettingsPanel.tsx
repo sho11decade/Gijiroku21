@@ -79,6 +79,11 @@ export function SettingsPanel({
     }
   };
 
+  const handleModelDirChange = (value: string) => {
+    const updated = { ...settings, model_directory: value.trim() === "" ? null : value };
+    handleSettingsUpdate(updated);
+  };
+
   if (loading) {
     return (
       <div className="max-w-4xl mx-auto p-6">
@@ -240,16 +245,26 @@ export function SettingsPanel({
           </div>
         )}
 
-        <div className="mt-4 flex items-center gap-3">
-          <button
-            onClick={handleCheckModels}
-            className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
-          >
-            モデル確認
-          </button>
-          <span className="text-xs text-gray-500">
-            既定のモデル配置: プロジェクト直下の models/asr
-          </span>
+        <div className="mt-4 space-y-2">
+          <label className="text-sm text-gray-700">モデルディレクトリ</label>
+          <input
+            type="text"
+            placeholder="(未指定はプロジェクト直下 models/asr)"
+            value={settings.model_directory ?? ""}
+            onChange={(e) => handleModelDirChange(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleCheckModels}
+              className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+            >
+              モデル確認
+            </button>
+            <span className="text-xs text-gray-500">
+              未指定時の既定: プロジェクト直下の models/asr
+            </span>
+          </div>
         </div>
       </div>
 
