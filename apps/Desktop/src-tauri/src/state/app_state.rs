@@ -95,8 +95,37 @@ impl AppState {
 
     /// NPU情報を初期化
     pub async fn initialize_npu(&self) -> AppResult<()> {
-        // TODO: 実際のNPU検出処理を実装
-        // 現在はスタブとして、NPUが利用不可として設定
+        // Windows での DirectML 存在チェックに基づく簡易検出
+        #[cfg(target_os = "windows")]
+        let npu_info = {
+            use std::path::Path;
+
+            // 環境変数 SystemRoot を優先してディレクトリを組み立て
+            let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".to_string());
+            let candidates = [
+                format!("{}\\System32\\DirectML.dll", system_root),
+                format!("{}\\SysWOW64\\DirectML.dll", system_root),
+            ];
+
+            let found = candidates.iter().any(|p| Path::new(p).exists());
+
+            if found {
+                NpuInfo {
+                    available: true,
+                    device_name: Some("DirectML".to_string()),
+                    driver_version: None,
+                }
+            } else {
+                NpuInfo {
+                    available: false,
+                    device_name: None,
+                    driver_version: None,
+                }
+            }
+        };
+
+        // Windows 以外は現時点では未対応のため CPU 扱い
+        #[cfg(not(target_os = "windows"))]
         let npu_info = NpuInfo {
             available: false,
             device_name: None,

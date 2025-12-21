@@ -141,6 +141,8 @@ Gijiroku21/
 
 - [Implementation.md](./docs/Implementation.md) - 実装状況の詳細
 - [DevelopmentPlan.md](./docs/DevelopmentPlan.md) - 開発計画と設計
+- [architecture.md](./docs/architecture.md) - アーキテクチャ概要（要点）
+- [npu_strategy.md](./docs/npu_strategy.md) - NPU検出と最適化方針（Phase 6）
 - [proposal.md](./docs/proposal.md) - プロジェクト提案書
 - [RecommendationTech.md](./docs/RecommendationTech.md) - 技術選定理由
 - [.github/copilot-instructions.md](./.github/copilot-instructions.md) - AI開発ガイド

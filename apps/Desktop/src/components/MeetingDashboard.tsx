@@ -139,6 +139,22 @@ export function MeetingDashboard({ isRecording, setIsRecording, onToast }: Meeti
     );
   };
 
+  const handleDetectNpu = async () => {
+    try {
+      const info = await TauriAPI.detectNpu();
+      console.info('[NPU]', info);
+      onToast(
+        info.available ? 'success' : 'info',
+        info.available
+          ? `NPU/DirectML 利用可能: ${info.device_name ?? 'DirectML'}`
+          : 'NPU/DirectML は利用できません（CPUで処理します）'
+      );
+    } catch (e) {
+      console.error('[NPU detect] failed', e);
+      onToast('error', 'NPU検出に失敗しました');
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto p-6">
       {/* 会議情報カード */}
@@ -204,6 +220,13 @@ export function MeetingDashboard({ isRecording, setIsRecording, onToast }: Meeti
                 録音開始
               </>
             )}
+          </button>
+          <button
+            onClick={handleDetectNpu}
+            className="ml-3 px-4 py-3 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+            title="NPU/DirectML を検出します"
+          >
+            NPU検出
           </button>
         </div>
       </div>
