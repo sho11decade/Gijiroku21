@@ -9,6 +9,7 @@ import { ToastContainer, ToastType } from './components/Toast';
 import { KeyboardShortcuts } from './components/KeyboardShortcuts';
 import { Tooltip } from './components/Tooltip';
 import { motion } from 'motion/react';
+import * as TauriAPI from './api/tauri';
 
 type ViewType = 'meeting' | 'editor' | 'settings' | 'history';
 
@@ -49,12 +50,22 @@ export default function App() {
     addToast('info', messages[view]);
   };
 
-  const handleToggleRecording = () => {
-    setIsRecording(!isRecording);
-    addToast(
-      isRecording ? 'warning' : 'success',
-      isRecording ? '録音を停止しました' : '録音を開始しました'
-    );
+  const handleToggleRecording = async () => {
+    try {
+      const status = await TauriAPI.getRecordingStatus();
+      if (status.status === 'recording') {
+        await TauriAPI.stopRecording();
+        setIsRecording(false);
+        addToast('warning', '録音を停止しました');
+      } else {
+        await TauriAPI.startRecording('クイック会議');
+        setIsRecording(true);
+        addToast('success', '録音を開始しました');
+      }
+    } catch (e) {
+      console.error('[App] toggleRecording failed', e);
+      addToast('error', '録音操作に失敗しました');
+    }
   };
 
   if (showOnboarding) {

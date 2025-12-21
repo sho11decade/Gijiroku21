@@ -14,6 +14,7 @@ export interface Settings {
   auto_save: boolean;
   save_directory: string | null;
   model_directory?: string | null;
+  tokenizer_directory?: string | null;
 }
 
 export interface SystemInfo {
@@ -48,6 +49,7 @@ export async function detectNpu(): Promise<NpuInfo> {
 export interface ModelCheck {
   ok: boolean;
   model_dir: string;
+  tokenizer_dir: string;
   required: string[];
   missing: string[];
 }

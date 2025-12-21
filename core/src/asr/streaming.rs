@@ -135,7 +135,29 @@ impl<M: AsrModel + Send + Sync> StreamingTranscriber<M> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::asr::WhisperModel;
+    use crate::asr::model::{TranscriptionResult, TranscriptionSegment};
+
+    struct DummyModel;
+
+    impl AsrModel for DummyModel {
+        fn initialize(&mut self, _model_path: &str) -> Result<(), AsrError> { Ok(()) }
+        fn transcribe(&self, audio: &[f32]) -> Result<TranscriptionResult, AsrError> {
+            let duration = audio.len() as f64 / 16000.0;
+            Ok(TranscriptionResult {
+                segments: vec![TranscriptionSegment {
+                    start: 0.0,
+                    end: duration,
+                    text: "dummy".to_string(),
+                    confidence: 1.0,
+                    speaker: None,
+                }],
+                full_text: "dummy".to_string(),
+                processing_time: 0.0,
+            })
+        }
+        fn is_loaded(&self) -> bool { true }
+        fn unload(&mut self) {}
+    }
     
     #[tokio::test]
     async fn test_streaming_config_default() {
@@ -147,7 +169,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_streaming_transcriber_empty_buffer() {
-        let model = Arc::new(WhisperModel::new());
+        let model = Arc::new(DummyModel);
         let config = StreamingConfig::default();
         let mut transcriber = StreamingTranscriber::new(model, config);
         
@@ -160,14 +182,7 @@ mod tests {
     
     #[tokio::test]
     async fn test_streaming_transcriber_with_mock_data() {
-        // モデルを初期化（スタブなので仮のパス）
-        let mut model = WhisperModel::new();
-        let temp_dir = std::env::temp_dir();
-        let model_path = temp_dir.join("mock_whisper_streaming.onnx");
-        std::fs::write(&model_path, b"mock").unwrap();
-        model.initialize(model_path.to_str().unwrap()).unwrap();
-        
-        let model = Arc::new(model);
+        let model = Arc::new(DummyModel);
         let config = StreamingConfig {
             chunk_duration: 5.0,  // 短めのチャンク
             interval_sec: 2.0,
@@ -192,8 +207,5 @@ mod tests {
         let result2 = transcriber.process_next_chunk(&buffer).await;
         assert!(result2.is_ok());
         assert!(result2.unwrap().is_none());
-        
-        // クリーンアップ
-        std::fs::remove_file(model_path).ok();
     }
 }

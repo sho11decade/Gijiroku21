@@ -9,13 +9,15 @@ export function SettingsPanel({
 }: {
   onToast: (type: ToastType, message: string) => void;
 }) {
-  const [settings, setSettings] = useState<Settings>({
-    use_npu: true,
-    asr_model_size: "small",
-    use_llm: true,
-    auto_save: true,
-    save_directory: null,
-  });
+    const [settings, setSettings] = useState<Settings>({
+      use_npu: true,
+      asr_model_size: "small",
+      use_llm: true,
+      auto_save: true,
+      save_directory: null,
+      model_directory: null,
+      tokenizer_directory: null,
+    });
   
   const [npuInfo, setNpuInfo] = useState<NpuInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -81,6 +83,11 @@ export function SettingsPanel({
 
   const handleModelDirChange = (value: string) => {
     const updated = { ...settings, model_directory: value.trim() === "" ? null : value };
+    handleSettingsUpdate(updated);
+  };
+
+  const handleTokenizerDirChange = (value: string) => {
+    const updated = { ...settings, tokenizer_directory: value.trim() === "" ? null : value };
     handleSettingsUpdate(updated);
   };
 
@@ -254,6 +261,14 @@ export function SettingsPanel({
             onChange={(e) => handleModelDirChange(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          <label className="text-sm text-gray-700">Tokenizerディレクトリ</label>
+          <input
+            type="text"
+            placeholder="(未指定はプロジェクト直下 models/tokenizer)"
+            value={settings.tokenizer_directory ?? ""}
+            onChange={(e) => handleTokenizerDirChange(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
           <div className="flex items-center gap-3">
             <button
               onClick={handleCheckModels}
@@ -262,7 +277,7 @@ export function SettingsPanel({
               モデル確認
             </button>
             <span className="text-xs text-gray-500">
-              未指定時の既定: プロジェクト直下の models/asr
+              未指定時の既定: ASR → models/asr, Tokenizer → models/tokenizer
             </span>
           </div>
         </div>

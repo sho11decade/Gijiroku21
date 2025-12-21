@@ -48,58 +48,45 @@ export function MeetingDashboard({ isRecording, setIsRecording, onToast }: Meeti
   useEffect(() => {
     let unlisten: UnlistenFn | null = null;
 
-    const setupListener = async () => {
-      unlisten = await listen<TranscriptSegment>('transcript_update', (event) => {
-        const segment = event.payload;
-        const newTranscript: Transcript = {
-          id: Date.now(),
-          speaker: segment.speaker || '不明',
-          text: segment.text,
-          confidence: segment.confidence,
-          timestamp: new Date().toLocaleTimeString('ja-JP', { 
-            hour: '2-digit', 
-            minute: '2-digit', 
-            second: '2-digit' 
-          }),
-        };
-        setTranscripts((prev) => [...prev, newTranscript]);
-      });
+    const bootstrap = async () => {
+      try {
+        // イベント購読（バックエンドからの transcript_update のみで反映）
+        unlisten = await listen<TranscriptSegment>('transcript_update', (event) => {
+          const segment = event.payload;
+          const newTranscript: Transcript = {
+            id: Date.now(),
+            speaker: segment.speaker || '不明',
+            text: segment.text,
+            confidence: segment.confidence,
+            timestamp: new Date().toLocaleTimeString('ja-JP', {
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit'
+            }),
+          };
+          setTranscripts((prev) => [...prev, newTranscript]);
+        });
+
+        // 起動時の状態同期
+        const status = await TauriAPI.getRecordingStatus();
+        if (status.status === 'recording') {
+          setIsRecording(true);
+          setCurrentMeetingId(status.meeting_id ?? null);
+        }
+      } catch (e) {
+        console.error('[MeetingDashboard] init failed', e);
+        onToast('error', '録音状態の取得に失敗しました');
+      }
     };
 
-    setupListener();
+    bootstrap();
 
     return () => {
       if (unlisten) {
         unlisten();
       }
     };
-  }, []);
-
-  // モック：録音中は定期的に新しい発言を追加（将来削除予定）
-  useEffect(() => {
-    if (isRecording) {
-      const mockPhrases = [
-        { speaker: '山田', text: 'その件については私が担当します。', tags: [] as ('important' | 'decision' | 'confirm')[] },
-        { speaker: '田中会長', text: '次回の会議は来週の同じ時間でお願いします。', tags: ['decision'] as ('important' | 'decision' | 'confirm')[] },
-        { speaker: '佐藤副会長', text: 'チラシのデザインはどうなっていますか？', tags: ['confirm'] as ('important' | 'decision' | 'confirm')[] },
-      ];
-
-      const interval = setInterval(() => {
-        const randomPhrase = mockPhrases[Math.floor(Math.random() * mockPhrases.length)];
-        const newTranscript: Transcript = {
-          id: Date.now(),
-          speaker: randomPhrase.speaker,
-          text: randomPhrase.text,
-          confidence: 0.85 + Math.random() * 0.15,
-          timestamp: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-          tags: randomPhrase.tags.length > 0 ? randomPhrase.tags : undefined,
-        };
-        setTranscripts((prev) => [...prev, newTranscript]);
-      }, 8000);
-
-      return () => clearInterval(interval);
-    }
-  }, [isRecording]);
+  }, [onToast, setIsRecording]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -122,6 +109,7 @@ export function MeetingDashboard({ isRecording, setIsRecording, onToast }: Meeti
         await TauriAPI.stopRecording();
         setIsRecording(false);
         setCurrentMeetingId(null);
+        setMeetingTime(0);
         onToast('success', '録音を停止しました');
       }
     } catch (error) {

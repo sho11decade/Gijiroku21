@@ -22,7 +22,8 @@ hound = "3.5"
 # ASR（音声認識）
 onnxruntime = "0.0.14"
 ndarray = "0.15"
-# tokenizers = "0.20"  # Phase 2で追加予定
+tokenizers = { version = "0.20", default-features = false, features = ["onig"] }
+rustfft = "6"
 
 # ユーティリティ
 chrono = { version = "0.4", features = ["serde"] }

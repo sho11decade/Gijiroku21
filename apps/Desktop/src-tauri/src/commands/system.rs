@@ -36,6 +36,7 @@ pub async fn update_settings(
 pub struct ModelCheck {
     pub ok: bool,
     pub model_dir: String,
+    pub tokenizer_dir: String,
     pub required: Vec<String>,
     pub missing: Vec<String>,
 }
@@ -48,6 +49,13 @@ fn default_model_dir() -> PathBuf {
         .join("asr")
 }
 
+fn default_tokenizer_dir() -> PathBuf {
+    std::env::current_dir()
+        .unwrap_or_else(|_| PathBuf::from("."))
+        .join("models")
+        .join("tokenizer")
+}
+
 /// モデル存在チェック（最小）
 #[tauri::command]
 pub async fn check_models(state: State<'_, AppState>) -> Result<ModelCheck, String> {
@@ -57,20 +65,51 @@ pub async fn check_models(state: State<'_, AppState>) -> Result<ModelCheck, Stri
         .as_ref()
         .map(PathBuf::from)
         .unwrap_or_else(default_model_dir);
+    let tokenizer_dir = s
+        .tokenizer_directory
+        .as_ref()
+        .map(PathBuf::from)
+        .unwrap_or_else(default_tokenizer_dir);
 
-    // 最小要件: whisper-small.onnx の存在のみ確認（拡張予定）
-    let required = vec!["whisper-small.onnx".to_string()];
+    // 必須ファイル: whisper-small (単一ONNX) または encoder/decoder ONNX と tokenizer
+    let mut required_paths = vec![
+        base.join("whisper-small.onnx"),
+        tokenizer_dir.join("tokenizer.json"),
+    ];
+    // マルチファイル構成も許容（encoder_model.onnx / decoder_model.onnx）
+    required_paths.push(base.join("encoder_model.onnx"));
+    required_paths.push(base.join("decoder_model.onnx"));
+
+    let required = required_paths
+        .iter()
+        .map(|p| format!("{}", p.display()))
+        .collect::<Vec<_>>();
     let mut missing = Vec::new();
-    for name in &required {
-        let p = base.join(name);
-        if !Path::new(&p).exists() {
-            missing.push(name.clone());
+    // 条件: (whisper-small.onnx) OR (encoder_model.onnx AND decoder_model.onnx)
+    let single_ok = Path::new(&required_paths[0]).exists();
+    let enc_ok = Path::new(&required_paths[2]).exists();
+    let dec_ok = Path::new(&required_paths[3]).exists();
+    let tokenizer_ok = Path::new(&required_paths[1]).exists();
+
+    if !tokenizer_ok {
+        missing.push(required[1].clone());
+    }
+    if !(single_ok || (enc_ok && dec_ok)) {
+        if !single_ok {
+            missing.push(required[0].clone());
+        }
+        if !enc_ok {
+            missing.push(required[2].clone());
+        }
+        if !dec_ok {
+            missing.push(required[3].clone());
         }
     }
 
     Ok(ModelCheck {
         ok: missing.is_empty(),
         model_dir: base.to_string_lossy().to_string(),
+        tokenizer_dir: tokenizer_dir.to_string_lossy().to_string(),
         required,
         missing,
     })

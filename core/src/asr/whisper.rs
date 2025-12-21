@@ -1,26 +1,25 @@
 use super::model::{AsrModel, AsrError, TranscriptionResult, TranscriptionSegment};
-use std::time::Instant;
 use std::path::Path;
-use onnxruntime::{environment::Environment, LoggingLevel};
+use tokenizers::Tokenizer;
 
 pub struct WhisperModel {
     model_path: Option<String>,
+    encoder_path: Option<String>,
+    decoder_path: Option<String>,
+    tokenizer_path: Option<String>,
     is_loaded: bool,
-    _env: Environment,
+    tokenizer: Option<Tokenizer>,
 }
 
 impl WhisperModel {
     pub fn new() -> Self {
-        let env = Environment::builder()
-            .with_name("gijiroku21")
-            .with_log_level(LoggingLevel::Warning)
-            .build()
-            .expect("Failed to create ONNX Runtime environment");
-        
         WhisperModel {
             model_path: None,
+            encoder_path: None,
+            decoder_path: None,
+            tokenizer_path: None,
             is_loaded: false,
-            _env: env,
+            tokenizer: None,
         }
     }
 }
@@ -33,14 +32,53 @@ impl Default for WhisperModel {
 
 impl AsrModel for WhisperModel {
     fn initialize(&mut self, model_path: &str) -> Result<(), AsrError> {
-        if !Path::new(model_path).exists() {
-            return Err(AsrError::ModelNotFound(model_path.to_string()));
+        // model_path はディレクトリもしくは単一ONNXを想定する
+        let p = Path::new(model_path);
+        let (enc, dec) = if p.is_dir() {
+            let enc = p.join("encoder_model.onnx");
+            let dec = p.join("decoder_model.onnx");
+            (enc, dec)
+        } else {
+            // 単一ファイルの場合は encoder/decoder と同パスを指す（単一ONNX対応）
+            (p.to_path_buf(), p.to_path_buf())
+        };
+
+        if !enc.exists() {
+            return Err(AsrError::ModelNotFound(enc.display().to_string()));
         }
-        
+        if !dec.exists() {
+            return Err(AsrError::ModelNotFound(dec.display().to_string()));
+        }
+
+        // tokenizer は model_path と同階層の tokenizer/tokenizer.json を優先
+        let tok_path = if p.is_dir() {
+            p.parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join("tokenizer")
+                .join("tokenizer.json")
+        } else {
+            Path::new(model_path)
+                .parent()
+                .unwrap_or_else(|| Path::new("."))
+                .join("tokenizer")
+                .join("tokenizer.json")
+        };
+
+        if !tok_path.exists() {
+            return Err(AsrError::ModelNotFound(tok_path.display().to_string()));
+        }
+
+        let tokenizer = Tokenizer::from_file(tok_path.to_string_lossy().to_string())
+            .map_err(|e| AsrError::InferenceFailed(format!("Tokenizer load error: {e}")))?;
+
         self.model_path = Some(model_path.to_string());
+        self.encoder_path = Some(enc.display().to_string());
+        self.decoder_path = Some(dec.display().to_string());
+        self.tokenizer_path = Some(tok_path.display().to_string());
+        self.tokenizer = Some(tokenizer);
         self.is_loaded = true;
         
-        println!("[WhisperModel] Model path set: {}", model_path);
+        println!("[WhisperModel] encoder: {}, decoder: {}", self.encoder_path.as_deref().unwrap_or(""), self.decoder_path.as_deref().unwrap_or(""));
         Ok(())
     }
     
@@ -48,21 +86,21 @@ impl AsrModel for WhisperModel {
         if !self.is_loaded {
             return Err(AsrError::ModelNotLoaded);
         }
-        
-        let start_time = Instant::now();
+
         let duration = audio.len() as f64 / 16000.0;
-        let max_amplitude = audio.iter().map(|&x| x.abs()).fold(0.0f32, f32::max);
-        let rms = (audio.iter().map(|&x| x * x).sum::<f32>() / audio.len() as f32).sqrt();
-        
-        let segments = Self::detect_voice_segments(audio, 16000);
-        
-        let result = TranscriptionResult {
-            segments,
-            full_text: format!("Audio: {:.2}s, Amp: {:.4}, RMS: {:.4}", duration, max_amplitude, rms),
-            processing_time: start_time.elapsed().as_secs_f64(),
+        let segment = TranscriptionSegment {
+            start: 0.0,
+            end: duration,
+            text: "(ASR not implemented yet)".to_string(),
+            confidence: 0.0,
+            speaker: None,
         };
-        
-        Ok(result)
+
+        Ok(TranscriptionResult {
+            segments: vec![segment],
+            full_text: "(ASR not implemented yet)".to_string(),
+            processing_time: 0.0,
+        })
     }
     
     fn is_loaded(&self) -> bool {
@@ -72,60 +110,10 @@ impl AsrModel for WhisperModel {
     fn unload(&mut self) {
         self.is_loaded = false;
         self.model_path = None;
-    }
-}
-
-impl WhisperModel {
-    fn detect_voice_segments(audio: &[f32], sample_rate: usize) -> Vec<TranscriptionSegment> {
-        const WINDOW_SIZE: usize = 16000;
-        const THRESHOLD: f32 = 0.01;
-        
-        let mut segments = Vec::new();
-        let mut in_voice = false;
-        let mut start_time = 0.0;
-        
-        for (i, chunk) in audio.chunks(WINDOW_SIZE).enumerate() {
-            let rms = (chunk.iter().map(|&x| x * x).sum::<f32>() / chunk.len() as f32).sqrt();
-            let current_time = i as f64;
-            
-            if rms > THRESHOLD && !in_voice {
-                start_time = current_time;
-                in_voice = true;
-            } else if rms <= THRESHOLD && in_voice {
-                segments.push(TranscriptionSegment {
-                    start: start_time,
-                    end: current_time,
-                    text: format!("Voice {:.1}s-{:.1}s", start_time, current_time),
-                    confidence: 0.9,
-                    speaker: None,
-                });
-                in_voice = false;
-            }
-        }
-        
-        if in_voice {
-            let end_time = audio.len() as f64 / sample_rate as f64;
-            segments.push(TranscriptionSegment {
-                start: start_time,
-                end: end_time,
-                text: format!("Voice {:.1}s-{:.1}s", start_time, end_time),
-                confidence: 0.9,
-                speaker: None,
-            });
-        }
-        
-        if segments.is_empty() {
-            let duration = audio.len() as f64 / sample_rate as f64;
-            segments.push(TranscriptionSegment {
-                start: 0.0,
-                end: duration,
-                text: String::from("Silent"),
-                confidence: 0.5,
-                speaker: None,
-            });
-        }
-        
-        segments
+        self.encoder_path = None;
+        self.decoder_path = None;
+        self.tokenizer_path = None;
+        self.tokenizer = None;
     }
 }
 
@@ -146,23 +134,11 @@ mod tests {
         let result = model.transcribe(&audio);
         assert!(result.is_err());
     }
-    
+
     #[test]
-    fn test_whisper_voice_detection() {
+    fn test_initialize_missing_model() {
         let mut model = WhisperModel::new();
-        let temp_dir = std::env::temp_dir();
-        let model_path = temp_dir.join("test.dat");
-        std::fs::write(&model_path, b"mock").unwrap();
-        
-        model.initialize(model_path.to_str().unwrap()).unwrap();
-        let mut audio = vec![0.0f32; 16000];
-        for (i, sample) in audio.iter_mut().enumerate() {
-            *sample = (i as f32 * 0.1).sin() * 0.5;
-        }
-        
-        let result = model.transcribe(&audio).unwrap();
-        assert!(!result.segments.is_empty());
-        
-        std::fs::remove_file(&model_path).ok();
+        let result = model.initialize("./no_such_model.onnx");
+        assert!(result.is_err());
     }
 }

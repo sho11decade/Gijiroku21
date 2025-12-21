@@ -26,6 +26,8 @@ pub struct Settings {
     pub save_directory: Option<String>,
     /// モデルディレクトリ（未指定時はプロジェクト相対 models/asr）
     pub model_directory: Option<String>,
+    /// Tokenizerディレクトリ（未指定時はプロジェクト相対 models/tokenizer）
+    pub tokenizer_directory: Option<String>,
 }
 
 impl Default for Settings {
@@ -37,6 +39,7 @@ impl Default for Settings {
             auto_save: true,
             save_directory: None,
             model_directory: None,
+            tokenizer_directory: None,
         }
     }
 }
