@@ -58,6 +58,17 @@ export async function checkModels(): Promise<ModelCheck> {
   return await invoke<ModelCheck>("check_models");
 }
 
+// モデルダウンロード
+export interface DownloadResult {
+  ok: boolean;
+  downloaded: string[];
+  failed: string[];
+}
+
+export async function downloadModels(): Promise<DownloadResult> {
+  return await invoke<DownloadResult>("download_models");
+}
+
 // 録音状態
 export interface RecordingStatus {
   status: "idle" | "recording" | "paused" | "processing";

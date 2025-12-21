@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { HelpCircle, Cpu, Zap, BarChart3 } from "lucide-react";
+import { HelpCircle, Cpu, Zap, BarChart3, Download } from "lucide-react";
 import { ToastType } from "./Toast";
 import { Tooltip } from "./Tooltip";
-import { getSettings, updateSettings, getNpuInfo, checkModels, type Settings, type NpuInfo, type ModelCheck } from "../api/tauri";
+import { getSettings, updateSettings, getNpuInfo, checkModels, downloadModels, type Settings, type NpuInfo, type ModelCheck, type DownloadResult } from "../api/tauri";
 
 export function SettingsPanel({
   onToast,
@@ -89,6 +89,34 @@ export function SettingsPanel({
   const handleTokenizerDirChange = (value: string) => {
     const updated = { ...settings, tokenizer_directory: value.trim() === "" ? null : value };
     handleSettingsUpdate(updated);
+  };
+
+  const handleDownloadModels = async () => {
+    try {
+      onToast("info", "モデルのダウンロードを開始します...");
+      const result: DownloadResult = await downloadModels();
+
+      if (result.ok) {
+        onToast("success", "モデルのダウンロードが完了しました");
+      } else {
+        onToast("warning", `一部のモデルのダウンロードに失敗しました: ${result.failed.join("; ")}`);
+      }
+
+      // ダウンロード後に存在チェックも実行
+      try {
+        const check = await checkModels();
+        if (check.ok) {
+          onToast("success", `モデルOK: ${check.model_dir}`);
+        } else {
+          onToast("warning", `不足モデル: ${check.missing.join(", ")}`);
+        }
+      } catch (e) {
+        console.error("checkModels after download failed", e);
+      }
+    } catch (e) {
+      console.error("downloadModels failed", e);
+      onToast("error", "モデルのダウンロードに失敗しました");
+    }
   };
 
   if (loading) {
@@ -269,12 +297,19 @@ export function SettingsPanel({
             onChange={(e) => handleTokenizerDirChange(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 mt-2">
             <button
               onClick={handleCheckModels}
               className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
             >
               モデル確認
+            </button>
+            <button
+              onClick={handleDownloadModels}
+              className="inline-flex items-center gap-1 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700"
+            >
+              <Download className="w-4 h-4" />
+              モデルを自動ダウンロード
             </button>
             <span className="text-xs text-gray-500">
               未指定時の既定: ASR → models/asr, Tokenizer → models/tokenizer

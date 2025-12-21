@@ -527,6 +527,7 @@ dependencies = [
  "directories",
  "hound",
  "ndarray",
+ "once_cell",
  "onnxruntime",
  "rustfft",
  "serde",

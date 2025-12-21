@@ -128,12 +128,9 @@ impl AudioCapture {
                         sum / channels as f32
                     })
                     .collect();
-
-                // 非同期でバッファに追加
+                // Tokio ランタイムに依存しない同期追加
                 let buffer_clone = Arc::clone(&buffer);
-                tokio::spawn(async move {
-                    buffer_clone.push(&samples).await;
-                });
+                buffer_clone.push_blocking(&samples);
             },
             err_fn,
             None,

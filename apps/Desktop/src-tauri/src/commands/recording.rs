@@ -1,10 +1,12 @@
 use tauri::State;
 use gijiroku21_core::audio::AudioCapture;
 use gijiroku21_core::storage::MeetingStorage;
-use gijiroku21_core::asr::{WhisperModel, StreamingTranscriber, StreamingConfig};
+use gijiroku21_core::asr::{WhisperModel, StreamingTranscriber, StreamingConfig, AsrModel};
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
-use crate::state::MeetingState;
+use crate::state::{MeetingState, AppState, Settings};
+use crate::commands::system::default_model_dir;
+use std::path::PathBuf;
 use crate::commands::transcription::emit_transcript_segment;
 
 /// 録音コマンド
@@ -55,9 +57,12 @@ impl Default for RecordingManager {
 pub async fn start_recording(
     meeting_state: State<'_, MeetingState>,
     recording_manager: State<'_, RecordingManager>,
+    app_state: State<'_, AppState>,
     app_handle: tauri::AppHandle,
     title: String,
 ) -> Result<String, String> {
+    // 設定を取得（モデル/トークナイザーディレクトリ）
+    let settings = app_state.get_settings().await;
     // 会議を開始
     meeting_state.start_meeting(title.clone()).await;
     
@@ -68,6 +73,7 @@ pub async fn start_recording(
     
     // Stateの内部データを取得（TauriのStateはすでにArc<T>をラップしている）
     let meeting_state_handle = meeting_state.inner().clone();
+    let settings_clone: Settings = settings.clone();
 
     // チャネルを作成
     let (tx, rx) = mpsc::channel::<RecordingCommand>(32);
@@ -80,7 +86,7 @@ pub async fn start_recording(
         // 新しいtokioランタイムを作成
         let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
         rt.block_on(async move {
-            audio_recording_thread(rx, meeting_id, meeting_state_handle, app_handle).await;
+            audio_recording_thread(rx, meeting_id, meeting_state_handle, settings_clone, app_handle).await;
         });
     });
 
@@ -92,6 +98,7 @@ async fn audio_recording_thread(
     mut rx: mpsc::Receiver<RecordingCommand>,
     meeting_id: String,
     meeting_state: MeetingState,
+    settings: Settings,
     app_handle: tauri::AppHandle,
 ) {
     // AudioCaptureを初期化
@@ -113,11 +120,31 @@ async fn audio_recording_thread(
         return;
     }
 
-    // ASRモデルの初期化（スタブ）
-    let whisper_model = WhisperModel::new();
-    // TODO: 実際のモデルパスを設定から取得
-    // 現在はスタブなので初期化をスキップ
-    
+    // ASRモデルの初期化
+    let mut whisper_model = WhisperModel::new();
+
+    // モデルディレクトリを決定（未設定ならプロジェクト相対 models/asr）
+    let model_dir: PathBuf = settings
+        .model_directory
+        .as_ref()
+        .map(PathBuf::from)
+        .unwrap_or_else(default_model_dir);
+
+    // 単一ファイル (whisper-small.onnx) があればそれを優先し、
+    // なければ encoder_model.onnx/decoder_model.onnx を前提にディレクトリを渡す
+    let single_model_path = model_dir.join("whisper-small.onnx");
+    let init_target = if single_model_path.exists() {
+        single_model_path.to_string_lossy().to_string()
+    } else {
+        model_dir.to_string_lossy().to_string()
+    };
+
+    if let Err(e) = whisper_model.initialize(&init_target) {
+        eprintln!("Failed to initialize Whisper model: {}", e);
+        // モデル初期化に失敗した場合も録音自体は続行し、
+        // 文字起こし処理側でエラーとして扱う
+    }
+
     let model = Arc::new(whisper_model);
     let config = StreamingConfig {
         chunk_duration: 30.0,
@@ -133,6 +160,12 @@ async fn audio_recording_thread(
     // 文字起こしタスク用のフラグ
     let transcription_enabled = meeting_state.transcription_enabled.clone();
     let transcription_enabled_clone = transcription_enabled.clone();
+
+    // 録音開始時点で文字起こしを有効化
+    {
+        let mut flag = transcription_enabled.write().await;
+        *flag = true;
+    }
     
     // 文字起こしタスクを起動
     let buffer_for_transcription = buffer_arc.clone();

@@ -15,7 +15,7 @@ impl AudioBuffer {
         }
     }
 
-    /// 音声データを追加
+    /// 音声データを追加（非同期）
     pub async fn push(&self, samples: &[f32]) {
         let mut buffer = self.buffer.write().await;
         
@@ -25,6 +25,19 @@ impl AudioBuffer {
             buffer.drain(0..overflow);
         }
         
+        buffer.extend_from_slice(samples);
+    }
+
+    /// 音声データを追加（同期版）
+    /// cpal のコールバックスレッドなど、Tokio ランタイム外から呼び出すために使用
+    pub fn push_blocking(&self, samples: &[f32]) {
+        let mut buffer = self.buffer.blocking_write();
+
+        if buffer.len() + samples.len() > self.capacity {
+            let overflow = buffer.len() + samples.len() - self.capacity;
+            buffer.drain(0..overflow);
+        }
+
         buffer.extend_from_slice(samples);
     }
 
