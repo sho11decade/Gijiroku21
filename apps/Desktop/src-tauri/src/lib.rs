@@ -30,6 +30,9 @@ pub fn run() {
             commands::resume_recording,
             commands::get_recording_status,
             commands::list_audio_devices,
+            commands::start_transcription,
+            commands::stop_transcription,
+            commands::is_transcription_enabled,
         ])
         .setup(|app| {
             // アプリ起動時の初期化処理

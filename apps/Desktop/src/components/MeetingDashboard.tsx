@@ -4,11 +4,20 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { EmptyState } from './EmptyState';
 import { ToastType } from './Toast';
 import * as TauriAPI from '../api/tauri';
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
 
 interface MeetingDashboardProps {
   isRecording: boolean;
   setIsRecording: (value: boolean) => void;
   onToast: (type: ToastType, message: string) => void;
+}
+
+interface TranscriptSegment {
+  start: number;
+  end: number;
+  text: string;
+  confidence: number;
+  speaker: string | null;
 }
 
 interface Transcript {
@@ -35,7 +44,38 @@ export function MeetingDashboard({ isRecording, setIsRecording, onToast }: Meeti
     }
   }, [isRecording]);
 
-  // モック：録音中は定期的に新しい発言を追加
+  // Tauri Eventリスナー：文字起こし結果を受信
+  useEffect(() => {
+    let unlisten: UnlistenFn | null = null;
+
+    const setupListener = async () => {
+      unlisten = await listen<TranscriptSegment>('transcript_update', (event) => {
+        const segment = event.payload;
+        const newTranscript: Transcript = {
+          id: Date.now(),
+          speaker: segment.speaker || '不明',
+          text: segment.text,
+          confidence: segment.confidence,
+          timestamp: new Date().toLocaleTimeString('ja-JP', { 
+            hour: '2-digit', 
+            minute: '2-digit', 
+            second: '2-digit' 
+          }),
+        };
+        setTranscripts((prev) => [...prev, newTranscript]);
+      });
+    };
+
+    setupListener();
+
+    return () => {
+      if (unlisten) {
+        unlisten();
+      }
+    };
+  }, []);
+
+  // モック：録音中は定期的に新しい発言を追加（将来削除予定）
   useEffect(() => {
     if (isRecording) {
       const mockPhrases = [

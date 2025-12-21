@@ -1,13 +1,14 @@
 use tauri::State;
 use gijiroku21_core::audio::AudioCapture;
 use gijiroku21_core::storage::MeetingStorage;
+use gijiroku21_core::asr::{WhisperModel, StreamingTranscriber, StreamingConfig};
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use crate::state::MeetingState;
+use crate::commands::transcription::emit_transcript_segment;
 
 /// 録音コマンド
 pub enum RecordingCommand {
-    Start,
     Stop,
     Pause,
     Resume,
@@ -54,6 +55,7 @@ impl Default for RecordingManager {
 pub async fn start_recording(
     meeting_state: State<'_, MeetingState>,
     recording_manager: State<'_, RecordingManager>,
+    app_handle: tauri::AppHandle,
     title: String,
 ) -> Result<String, String> {
     // 会議を開始
@@ -78,7 +80,7 @@ pub async fn start_recording(
         // 新しいtokioランタイムを作成
         let rt = tokio::runtime::Runtime::new().expect("Failed to create runtime");
         rt.block_on(async move {
-            audio_recording_thread(rx, meeting_id, meeting_state_handle).await;
+            audio_recording_thread(rx, meeting_id, meeting_state_handle, app_handle).await;
         });
     });
 
@@ -90,6 +92,7 @@ async fn audio_recording_thread(
     mut rx: mpsc::Receiver<RecordingCommand>,
     meeting_id: String,
     meeting_state: MeetingState,
+    app_handle: tauri::AppHandle,
 ) {
     // AudioCaptureを初期化
     let mut capture = match AudioCapture::new() {
@@ -110,17 +113,79 @@ async fn audio_recording_thread(
         return;
     }
 
+    // ASRモデルの初期化（スタブ）
+    let whisper_model = WhisperModel::new();
+    // TODO: 実際のモデルパスを設定から取得
+    // 現在はスタブなので初期化をスキップ
+    
+    let model = Arc::new(whisper_model);
+    let config = StreamingConfig {
+        chunk_duration: 30.0,
+        interval_sec: 5.0,
+        input_sample_rate: capture.sample_rate(),
+        overlap_duration: 1.0,
+    };
+    
+    let mut transcriber = StreamingTranscriber::new(model.clone(), config);
+    let buffer = capture.get_buffer();
+    let buffer_arc = Arc::new(buffer);
+    
+    // 文字起こしタスク用のフラグ
+    let transcription_enabled = meeting_state.transcription_enabled.clone();
+    let transcription_enabled_clone = transcription_enabled.clone();
+    
+    // 文字起こしタスクを起動
+    let buffer_for_transcription = buffer_arc.clone();
+    let app_handle_clone = app_handle.clone();
+    tokio::spawn(async move {
+        let mut tick = tokio::time::interval(tokio::time::Duration::from_secs(5));
+        
+        loop {
+            tick.tick().await;
+            
+            // 文字起こしが有効な場合のみ処理
+            if *transcription_enabled_clone.read().await {
+                match transcriber.process_next_chunk(&buffer_for_transcription).await {
+                    Ok(Some(segments)) => {
+                        for segment in segments {
+                            println!("[ASR] {:.2}s - {:.2}s: {}", 
+                                segment.start, segment.end, segment.text);
+                            
+                            // UIにイベント送信
+                            let ui_segment = crate::commands::transcription::TranscriptSegment {
+                                start: segment.start,
+                                end: segment.end,
+                                text: segment.text.clone(),
+                                confidence: segment.confidence,
+                                speaker: segment.speaker.clone(),
+                            };
+                            emit_transcript_segment(&app_handle_clone, &ui_segment);
+                        }
+                    }
+                    Ok(None) => {
+                        // まだ処理するチャンクがない
+                    }
+                    Err(e) => {
+                        eprintln!("Transcription error: {}", e);
+                    }
+                }
+            }
+        }
+    });
+
     // コマンドを待機
     while let Some(cmd) = rx.recv().await {
         match cmd {
             RecordingCommand::Stop => {
+                // 文字起こし停止
+                *transcription_enabled.write().await = false;
+                
                 // 録音を停止して保存
                 if let Err(e) = capture.stop_recording() {
                     eprintln!("Failed to stop recording: {}", e);
                 }
 
-                let buffer = capture.get_buffer();
-                let samples = buffer.get_all().await;
+                let samples = buffer_arc.get_all().await;
                 let sample_rate = capture.sample_rate();
 
                 // ストレージに保存
@@ -134,18 +199,23 @@ async fn audio_recording_thread(
                 break;
             }
             RecordingCommand::Pause => {
+                // 文字起こし一時停止
+                *transcription_enabled.write().await = false;
+                
                 if let Err(e) = capture.stop_recording() {
                     eprintln!("Failed to pause recording: {}", e);
                 }
                 meeting_state.pause().await;
             }
             RecordingCommand::Resume => {
+                // 文字起こし再開
+                *transcription_enabled.write().await = true;
+                
                 if let Err(e) = capture.start_recording() {
                     eprintln!("Failed to resume recording: {}", e);
                 }
                 meeting_state.resume().await;
             }
-            _ => {}
         }
     }
 }

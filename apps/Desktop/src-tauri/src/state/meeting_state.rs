@@ -33,6 +33,8 @@ pub struct MeetingState {
     pub current_meeting: Arc<RwLock<Option<MeetingMetadata>>>,
     /// 文字起こし中間結果（リアルタイム表示用）
     pub transcript_buffer: Arc<RwLock<Vec<String>>>,
+    /// 文字起こし有効フラグ
+    pub transcription_enabled: Arc<RwLock<bool>>,
 }
 
 impl MeetingState {
@@ -41,6 +43,7 @@ impl MeetingState {
             status: Arc::new(RwLock::new(RecordingStatus::Idle)),
             current_meeting: Arc::new(RwLock::new(None)),
             transcript_buffer: Arc::new(RwLock::new(Vec::new())),
+            transcription_enabled: Arc::new(RwLock::new(false)),
         }
     }
 
