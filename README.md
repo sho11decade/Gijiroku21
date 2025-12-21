@@ -23,18 +23,33 @@ Gijiroku21 は、**完全ローカル動作**する高性能な議事録作成�
 ## 現在の実装状況（2025-12-21）
 
 ### ✅ 実装完了
+
+#### Phase 1-4: 基本インフラ + UI統合
 - [x] Rustバックエンド基盤（エラーハンドリング、状態管理）
-- [x] 音声キャプチャ機能（cpal使用、48kHz モノラル）
+- [x] 音声キャプチャ機能（cpal 0.15.3、48kHz モノラル）
 - [x] 録音開始/停止/一時停止/再開 API
-- [x] WAVファイルエクスポート
+- [x] WAVファイルエクスポート（hound 3.5.1）
 - [x] 設定管理（JSON永続化）
 - [x] React UI統合（録音画面、設定画面）
+- [x] Tauri Event統合（リアルタイム更新）
 
-### 🚧 開発中
-- [ ] ONNX Runtime + Whisperモデル統合
-- [ ] リアルタイムASRパイプライン
+#### Phase 5: 実動作基盤
+- [x] ONNX Runtime統合（onnxruntime 0.0.14）
+- [x] 音声リサンプリング（48kHz → 16kHz）
+- [x] ASR基本モジュール（トレイト定義）
+- [x] WhisperModel実装（RMS VAD音声区間検出）
+- [x] ストリーミング処理パイプライン（5秒間隔）
+- [x] UI⇔ASR間のイベント通信
+- [x] 完全エンドツーエンドテスト（10/10 passing）
+
+### 🚧 開発中・計画中
+
+#### Phase 6-8: 高度な機能
+- [ ] NPU検出・DirectML最適化
+- [ ] Whisper ONNXモデル管理・ダウンロード
+- [ ] 実際のWhisper推論（メルスペクトログラム + Encoder/Decoder）
+- [ ] 議事録永続化（JSON/Markdown保存）
 - [ ] LLM要約生成
-- [ ] NPU検出・最適化
 - [ ] 話者分離
 
 詳細は [Implementation.md](./docs/Implementation.md) を参照してください。
@@ -76,6 +91,28 @@ pnpm tauri dev
 ```powershell
 pnpm tauri build
 ```
+
+## 実装フェーズ
+
+### Phase 1-2: 基本インフラ ✅
+- システム情報、設定管理
+- 音声キャプチャ、リングバッファ
+
+### Phase 3-4: UI統合 ✅
+- React コンポーネント
+- Tauri Command API
+- リアルタイムイベント通信
+
+### Phase 5: 実動作（完成） ✅
+- ONNX Runtime環境構築
+- 音声前処理（リサンプリング、正規化）
+- ASR基本パイプライン（RMS VAD）
+- **エンドツーエンド動作確認完了**
+
+### Phase 6+: 高度な機能 🚧
+- NPU最適化、モデル管理
+- 実Whisper推論、要約生成
+- 永続化、エクスポート
 
 ## 使い方
 

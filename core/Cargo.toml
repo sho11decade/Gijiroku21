@@ -19,11 +19,10 @@ serde_json = "1"
 cpal = "0.15"
 hound = "3.5"
 
-# ASR（音声認識） - 現在はスタブ実装のためコメントアウト
-# ONNX Runtimeは大きな依存関係なので、実際のモデル統合時に有効化
-# ort = { version = "2", features = ["download-binaries"] }
-# ndarray = "0.15"
-# tokenizers = "0.20"
+# ASR（音声認識）
+onnxruntime = "0.0.14"
+ndarray = "0.15"
+# tokenizers = "0.20"  # Phase 2で追加予定
 
 # ユーティリティ
 chrono = { version = "0.4", features = ["serde"] }
