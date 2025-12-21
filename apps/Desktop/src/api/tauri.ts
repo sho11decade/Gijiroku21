@@ -13,6 +13,7 @@ export interface Settings {
   use_llm: boolean;
   auto_save: boolean;
   save_directory: string | null;
+  model_directory?: string | null;
 }
 
 export interface SystemInfo {
@@ -41,6 +42,18 @@ export async function getNpuInfo(): Promise<NpuInfo | null> {
 
 export async function detectNpu(): Promise<NpuInfo> {
   return await invoke<NpuInfo>("detect_npu");
+}
+
+// モデル存在チェック
+export interface ModelCheck {
+  ok: boolean;
+  model_dir: string;
+  required: string[];
+  missing: string[];
+}
+
+export async function checkModels(): Promise<ModelCheck> {
+  return await invoke<ModelCheck>("check_models");
 }
 
 // 録音状態

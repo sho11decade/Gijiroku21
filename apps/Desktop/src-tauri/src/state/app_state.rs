@@ -24,6 +24,8 @@ pub struct Settings {
     pub auto_save: bool,
     /// 保存先ディレクトリ
     pub save_directory: Option<String>,
+    /// モデルディレクトリ（未指定時はプロジェクト相対 models/asr）
+    pub model_directory: Option<String>,
 }
 
 impl Default for Settings {
@@ -34,6 +36,7 @@ impl Default for Settings {
             use_llm: true,
             auto_save: true,
             save_directory: None,
+            model_directory: None,
         }
     }
 }

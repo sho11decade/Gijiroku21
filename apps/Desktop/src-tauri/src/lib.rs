@@ -24,6 +24,7 @@ pub fn run() {
             commands::update_settings,
             commands::get_npu_info,
             commands::detect_npu,
+            commands::check_models,
             commands::start_recording,
             commands::stop_recording,
             commands::pause_recording,

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { HelpCircle, Cpu, Zap, BarChart3 } from "lucide-react";
 import { ToastType } from "./Toast";
 import { Tooltip } from "./Tooltip";
-import { getSettings, updateSettings, getNpuInfo, type Settings, type NpuInfo } from "../api/tauri";
+import { getSettings, updateSettings, getNpuInfo, checkModels, type Settings, type NpuInfo, type ModelCheck } from "../api/tauri";
 
 export function SettingsPanel({
   onToast,
@@ -63,6 +63,20 @@ export function SettingsPanel({
 
   const toggleAutoSave = () => {
     handleSettingsUpdate({ ...settings, auto_save: !settings.auto_save });
+  };
+
+  const handleCheckModels = async () => {
+    try {
+      const result: ModelCheck = await checkModels();
+      if (result.ok) {
+        onToast("success", `モデルOK: ${result.model_dir}`);
+      } else {
+        onToast("warning", `不足モデル: ${result.missing.join(", ")}`);
+      }
+    } catch (e) {
+      console.error("checkModels failed", e);
+      onToast("error", "モデル確認に失敗しました");
+    }
   };
 
   if (loading) {
@@ -158,11 +172,11 @@ export function SettingsPanel({
         </div>
       </div>
 
-      {/* NPU設定 */}
+      {/* NPU設定 / モデル */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
         <div className="flex items-center gap-2 mb-6">
           <Cpu className="w-5 h-5 text-blue-600" />
-          <h2 className="text-gray-900">NPU高速化</h2>
+          <h2 className="text-gray-900">NPU高速化 / モデル</h2>
         </div>
 
         <div className="flex items-start justify-between mb-4">
@@ -225,6 +239,18 @@ export function SettingsPanel({
             </p>
           </div>
         )}
+
+        <div className="mt-4 flex items-center gap-3">
+          <button
+            onClick={handleCheckModels}
+            className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50"
+          >
+            モデル確認
+          </button>
+          <span className="text-xs text-gray-500">
+            既定のモデル配置: プロジェクト直下の models/asr
+          </span>
+        </div>
       </div>
 
       {/* パフォーマンス可視化 */}
